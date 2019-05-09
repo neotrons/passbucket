@@ -20,10 +20,12 @@ class AESCrypt(object):
             return ''
 
     def decrypt(self, enc):
-        enc = base64.b64decode(enc.encode("ascii"))
-        iv = enc[:AES.block_size]
-        crypt = AES.new(self.key, AES.MODE_CBC, iv)
-        return self._unpad(crypt.decrypt(enc[AES.block_size:])).decode('utf-8')
+        if enc != '' and enc is not None:
+            enc = base64.b64decode(enc.encode("ascii"))
+            iv = enc[:AES.block_size]
+            crypt = AES.new(self.key, AES.MODE_CBC, iv)
+            return self._unpad(crypt.decrypt(enc[AES.block_size:])).decode('utf-8')
+        return ''
 
     def _pad(self, s):
         return s + (self.bs - len(s) % self.bs) * chr(self.bs - len(s) % self.bs)

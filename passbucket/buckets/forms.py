@@ -6,19 +6,25 @@ from core.aescrypt import AESCrypt
 
 class BucketForm(forms.ModelForm):
     password = forms.CharField(max_length=50, widget=forms.PasswordInput())
+    is_decrypt = forms.BooleanField(required=False)
 
     class Meta:
         model = Bucket
-        fields = ('password', 'name', 'user_account', 'password_account', 'recovery_email', 'recovery_phone',
-                  'secret_question', 'secret_response')
-        """
+        fields = ('password', 'is_decrypt', 'name', 'user_account', 'password_account', 'recovery_email',
+                  'recovery_phone', 'secret_question', 'secret_response')
         widgets = {
-            'clave': forms.PasswordInput(render_value=True),
+            'password_account': forms.PasswordInput(render_value=True),
             'email_recuperacion': forms.PasswordInput(render_value=True),
             'telefono_recuperacion': forms.PasswordInput(render_value=True),
             'pregunta_secreta': forms.PasswordInput(render_value=True),
             'respuesta_secreta': forms.PasswordInput(render_value=True),
-        }"""
+        }
+
+    def __init__(self, *args, **kwargs):
+        super(BucketForm, self).__init__(*args, **kwargs)
+        if self.instance.pk is None:
+            self.fields['is_decrypt'].widget.attrs.update({"readonly": "readonly",
+                                                           "onclick": "javascript: return false;"})
 
     def clean_password(self):
         password = self.cleaned_data.get('password')
@@ -31,35 +37,21 @@ class BucketForm(forms.ModelForm):
     def save(self, commit=True):
         self.instance = super(BucketForm, self).save(commit=False)
         password = self.cleaned_data.get('password')
-        password_account = self.cleaned_data.get('password_account')
-        recovery_email = self.cleaned_data.get('recovery_email')
-        recovery_phone = self.cleaned_data.get('recovery_phone')
-        secret_question = self.cleaned_data.get('secret_question')
-        secret_response = self.cleaned_data.get('secret_response')
-
+        is_decrypt = self.cleaned_data.get('is_decrypt')
+        no_encript_list = ['name', 'user_account']
+        key = AESCrypt(password)
         if self.instance.id is not None:
             bucket = Bucket.objects.get(id=self.instance.id)
-            if bucket.clave != password_account:
-                self.instance.password_account = AESCrypt(password).encrypt(password_account)
-
-            if bucket.recovery_email != recovery_email:
-                self.instance.recovery_email = AESCrypt(password).encrypt(recovery_email)
-
-            if bucket.recovery_phone != recovery_phone:
-                self.instance.recovery_phone = AESCrypt(password).encrypt(recovery_phone)
-
-            if bucket.secret_question != secret_question:
-                self.instance.secret_question = AESCrypt(password).encrypt(secret_question)
-
-            if bucket.secret_response != secret_response:
-                self.instance.secret_response = AESCrypt(password).encrypt(secret_response)
-
+            for field in self.fields:
+                value = self.cleaned_data.get(field)
+                if not is_decrypt and getattr(bucket, field, None) != value and hasattr(bucket, field) \
+                        and field not in no_encript_list:
+                    setattr(self.instance, field, key.encrypt(value))
         else:
-            self.instance.password_account = AESCrypt(password).encrypt(password_account)
-            self.instance.recovery_phone = AESCrypt(password).encrypt(recovery_phone)
-            self.instance.recovery_phone = AESCrypt(password).encrypt(recovery_phone)
-            self.instance.secret_question = AESCrypt(password).encrypt(secret_question)
-            self.instance.secret_response = AESCrypt(password).encrypt(secret_response)
+            for field in self.fields:
+                value = self.cleaned_data.get(field)
+                if hasattr(self.instance, field) and field not in no_encript_list:
+                    setattr(self.instance, field, key.encrypt(value))
 
         if commit:
             self.instance.save()
